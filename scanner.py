@@ -349,7 +349,7 @@ async def main():
             score_result = calc_bull_score(score_input)
 
             # 차트용 최근 데이터 (상위 종목만 포함, 나머지는 빈 배열)
-            chart_data = data[-60:]  # 최근 60일만
+            chart_data = data[-30:]  # 최근 30일만 (JSON 크기 축소)
 
             analyzed.append({
                 'code': s['c'],
@@ -377,11 +377,11 @@ async def main():
         analyzed.sort(key=lambda x: x['bullScore'], reverse=True)
         print(f'   → {len(analyzed)}개 종목 분석 완료')
 
-        # 차트 데이터: 주요 신호 있는 종목은 유지, 나머지 제거 (JSON 크기 축소)
+        # 차트 데이터: 상위 500개 + 주요 신호 종목만 유지, 나머지 제거
         for i, a in enumerate(analyzed):
-            has_signal = (a['maAligned'] or a['maJust'] or a['volChange'] >= 50 or
-                         a['newHighAll'] or a['newHighNear'] or a['bullScore'] >= 25 or i < 300)
-            if not has_signal:
+            keep = (i < 500 or a['maJust'] or a['bullScore'] >= 40 or
+                   (a['maAligned'] and a['volChange'] >= 100))
+            if not keep:
                 a['rawData'] = []
 
         # 4단계: 상위 종목 투자자 데이터

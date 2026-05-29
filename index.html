@@ -280,7 +280,7 @@ function drawChart(idx, r) {
   const canvas = document.getElementById(`chart_${idx}`);
   if (!canvas || !r.rawData || r.rawData.length === 0) return;
   const ctx = canvas.getContext('2d');
-  const displayData = r.rawData.slice(-60);
+  const displayData = r.rawData.slice(-30);
   const labels = displayData.map(d => d.date.slice(4,6)+'.'+d.date.slice(6));
   const closes = displayData.map(d => d.close);
   const volumes = displayData.map(d => d.volume);
@@ -290,7 +290,7 @@ function drawChart(idx, r) {
   const ma5All = calcMA(allCloses, 5);
   const ma20All = calcMA(allCloses, 20);
   const ma60All = calcMA(allCloses, 60);
-  const offset = r.rawData.length - 60;
+  const offset = Math.max(0, r.rawData.length - 30);
   const ma5 = ma5All.slice(offset);
   const ma20 = ma20All.slice(offset);
   const ma60 = ma60All.slice(offset);
