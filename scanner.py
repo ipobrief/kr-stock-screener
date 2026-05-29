@@ -332,6 +332,10 @@ async def main():
             high_result = check_new_high(data)
             consecutive_up = count_consecutive_up(data)
 
+            # 이상 데이터 필터 (액면분할, 합병 등 노이즈 제거)
+            if abs(today_return) > 50 or abs(avg3_return) > 100:
+                continue
+
             score_input = {
                 'todayReturn': today_return,
                 'avg3Return': avg3_return,
@@ -373,10 +377,12 @@ async def main():
         analyzed.sort(key=lambda x: x['bullScore'], reverse=True)
         print(f'   → {len(analyzed)}개 종목 분석 완료')
 
-        # 차트 데이터는 상위 300개만 유지 (JSON 크기 축소)
-        CHART_TOP_N = 300
-        for i in range(CHART_TOP_N, len(analyzed)):
-            analyzed[i]['rawData'] = []
+        # 차트 데이터: 주요 신호 있는 종목은 유지, 나머지 제거 (JSON 크기 축소)
+        for i, a in enumerate(analyzed):
+            has_signal = (a['maAligned'] or a['maJust'] or a['volChange'] >= 50 or
+                         a['newHighAll'] or a['newHighNear'] or a['bullScore'] >= 25 or i < 300)
+            if not has_signal:
+                a['rawData'] = []
 
         # 4단계: 상위 종목 투자자 데이터
         top_n = min(INVESTOR_TOP_N, len(analyzed))
