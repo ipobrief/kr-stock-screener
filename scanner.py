@@ -336,6 +336,13 @@ async def main():
             if abs(today_return) > 50 or abs(avg3_return) > 100:
                 continue
 
+            # 거래대금 계산 (종가 × 거래량)
+            trade_value = closes[-1] * vol_result['todayVol']
+
+            # 거래대금 1000억 미만 제외
+            if trade_value < 10_000_000_000:
+                continue
+
             score_input = {
                 'todayReturn': today_return,
                 'avg3Return': avg3_return,
@@ -363,6 +370,8 @@ async def main():
                 'volChange': round(vol_result['change'], 1),
                 'todayVol': vol_result['todayVol'],
                 'avgVol': round(vol_result['avgVol']),
+                'tradeValue': trade_value,
+                'combo20': score_result['scoreDetail']['combo']['s'] == 20,
                 'newHighAll': high_result['allTime'],
                 'newHighNear': high_result['near'],
                 'prevHigh': high_result['prevHigh'],
