@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>국내주식 정배열 스크리너</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0e17; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; }
+.header { padding: 20px 30px; border-bottom: 1px solid #1a2035; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.header h1 { font-size: 20px; color: #fff; }
+.header h1 span { color: #e74c3c; }
+.controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.controls label { font-size: 13px; color: #8892a4; }
+.controls select, .controls input { background: #141a2a; border: 1px solid #2a3450; color: #e0e0e0; padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+.controls button { background: #2563eb; color: #fff; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.controls button:hover { background: #1d4ed8; }
+.controls button:disabled { background: #333; cursor: not-allowed; }
+.status-bar { padding: 10px 30px; font-size: 13px; color: #8892a4; background: #0d1220; border-bottom: 1px solid #1a2035; }
+.progress-wrap { height: 3px; background: #1a2035; margin-top: 6px; border-radius: 2px; overflow: hidden; }
+.progress-bar { height: 100%; background: #2563eb; width: 0%; transition: width 0.3s; }
+.summary { padding: 16px 30px; display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; }
+.summary .stat { background: #141a2a; padding: 10px 16px; border-radius: 8px; border: 1px solid #1e2a40; }
+.summary .stat .val { font-size: 20px; font-weight: 700; color: #fff; }
+.summary .stat .lbl { color: #8892a4; margin-top: 2px; }
+.summary .stat:hover { border-color: #3b82f6; }
+.summary .stat.active { border-color: #3b82f6; background: #1a2540; }
+.stock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 16px; padding: 20px 30px; }
+.stock-card { background: #111827; border: 1px solid #1e2a40; border-radius: 10px; padding: 16px; }
+.stock-card.highlight { border-color: #f59e0b; }
+.stock-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.stock-name { font-size: 16px; font-weight: 700; color: #fff; }
+.stock-name small { font-weight: 400; color: #8892a4; margin-left: 6px; }
+.stock-badges { display: flex; gap: 5px; flex-wrap: wrap; }
+.badge { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; position: relative; cursor: help; }
+.badge .tip { display: none; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #1e293b; color: #e2e8f0; padding: 8px 12px; border-radius: 6px; font-size: 11px; font-weight: 400; white-space: nowrap; z-index: 100; margin-top: 6px; border: 1px solid #334155; box-shadow: 0 4px 12px rgba(0,0,0,0.5); pointer-events: none; }
+.badge:hover .tip { display: block; }
+.badge.score-btn { cursor: pointer; user-select: none; }
+.badge.score-btn:hover { filter: brightness(1.3); }
+.badge.vol-up { background: #14532d; color: #4ade80; }
+.badge.vol-down { background: #451a1a; color: #f87171; }
+.badge.vol-spike { background: #7c2d12; color: #fb923c; animation: pulse 1.5s infinite; }
+.badge.ma-aligned { background: #1e3a1e; color: #86efac; }
+.badge.ma-just { background: #166534; color: #4ade80; animation: pulse 1.5s infinite; font-weight: 700; }
+.badge.today-up { background: #14532d; color: #4ade80; }
+.badge.today-down { background: #451a1a; color: #f87171; }
+.badge.avg-up { background: #14532d; color: #4ade80; }
+.badge.avg-down { background: #451a1a; color: #f87171; }
+.badge.market-k { background: #1e3a5f; color: #60a5fa; }
+.badge.market-q { background: #3b1e5f; color: #c084fc; }
+.badge.newhigh { background: #7c2d12; color: #fb923c; animation: pulse 1.5s infinite; }
+.badge.foreign-buy { background: #14532d; color: #4ade80; }
+.badge.foreign-sell { background: #451a1a; color: #f87171; }
+.badge.inst-buy { background: #1e3a5f; color: #60a5fa; }
+.badge.inst-sell { background: #451a3a; color: #f472b6; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
+.stock-stats { display: flex; gap: 14px; font-size: 12px; color: #8892a4; margin-bottom: 6px; flex-wrap: wrap; }
+.stock-stats span { display: flex; flex-direction: column; }
+.stock-stats .v { color: #e0e0e0; font-weight: 600; }
+.investor-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 6px 0; }
+.investor-bar .foreign { background: #3b82f6; }
+.investor-bar .inst { background: #f59e0b; }
+.investor-bar .indiv { background: #6b7280; }
+.investor-legend { display: flex; gap: 12px; font-size: 10px; color: #8892a4; margin-bottom: 6px; }
+.investor-legend span::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+.investor-legend .l-foreign::before { background: #3b82f6; }
+.investor-legend .l-inst::before { background: #f59e0b; }
+.investor-legend .l-indiv::before { background: #6b7280; }
+.pos { color: #4ade80; } .neg { color: #f87171; }
+.chart-wrap { height: 180px; position: relative; }
+.view-toggle { display: flex; gap: 0; }
+.view-toggle button { border-radius: 0; border: 1px solid #2a3450; background: #141a2a; color: #8892a4; padding: 6px 14px; cursor: pointer; font-size: 13px; }
+.view-toggle button.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+.view-toggle button:first-child { border-radius: 6px 0 0 6px; }
+.view-toggle button:last-child { border-radius: 0 6px 6px 0; }
+.table-view { padding: 0 30px 30px; overflow-x: auto; }
+.table-view table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table-view th { text-align: left; padding: 10px 12px; border-bottom: 1px solid #1e2a40; cursor: pointer; user-select: none; color: #8892a4; }
+.table-view th:hover { color: #fff; }
+.table-view td { padding: 8px 12px; border-bottom: 1px solid #111827; }
+.table-view tr:hover { background: #141a2a; }
+.no-results { text-align: center; padding: 60px 30px; color: #8892a4; font-size: 15px; }
+#scoreOverlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:999; }
+#scorePopup { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#1a2235; border:1px solid #2a3a55; border-radius:12px; padding:24px; z-index:1000; min-width:360px; max-width:90vw; }
+#scorePopup .title { font-size:16px; font-weight:700; margin-bottom:12px; color:#fff; }
+#scorePopup table { width:100%; border-collapse:collapse; font-size:13px; }
+#scorePopup th, #scorePopup td { padding:6px 8px; border-bottom:1px solid #2a3a55; text-align:left; }
+#scorePopup th { color:#8892a4; }
+#scorePopup .total td { font-weight:700; font-size:15px; padding-top:10px; border:none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📈 <span>국내주식</span> 정배열 스크리너</h1>
+  <div class="controls">
+    <label>시장</label>
+    <select id="market">
+      <option value="ALL">전체</option>
+      <option value="KOSPI">KOSPI</option>
+      <option value="KOSDAQ">KOSDAQ</option>
+    </select>
+    <label>점수 ≥</label>
+    <input id="scoreThreshold" type="number" value="0" style="width:50px">
+    <label>거래량 급등 ≥</label>
+    <input id="volThreshold" type="number" value="0" style="width:50px"> <span style="color:#8892a4">%</span>
+    <div class="view-toggle">
+      <button id="btnCard" class="active" onclick="setView('card')">카드</button>
+      <button id="btnTable" onclick="setView('table')">테이블</button>
+    </div>
+    <button id="scanBtn" onclick="loadData()">데이터 로드</button>
+  </div>
+</div>
+
+<div class="status-bar">
+  <span id="status">데이터 로드 중...</span>
+  <div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
+</div>
+
+<div class="summary" id="summary" style="display:none">
+  <div class="stat" onclick="toggleFilter('all')" style="cursor:pointer"><div class="val" id="totalCount">0</div><div class="lbl">분석 종목</div></div>
+  <div class="stat" onclick="toggleFilter('aligned')" style="cursor:pointer"><div class="val" id="alignedCount">0</div><div class="lbl">정배열 종목</div></div>
+  <div class="stat" onclick="toggleFilter('just')" style="cursor:pointer"><div class="val" id="justCount" style="color:#4ade80">0</div><div class="lbl">⚡ 정배열 전환</div></div>
+  <div class="stat" onclick="toggleFilter('volSpike')" style="cursor:pointer"><div class="val" id="volSpikeCount" style="color:#fb923c">0</div><div class="lbl">🔥 거래량 급등</div></div>
+  <div class="stat" onclick="toggleFilter('newHigh')" style="cursor:pointer"><div class="val" id="newHighCount" style="color:#f59e0b">0</div><div class="lbl">🚀 고점 돌파</div></div>
+</div>
+
+<div class="stock-grid" id="cardGrid"></div>
+<div class="table-view" id="tableView" style="display:none"></div>
+
+<div id="scoreOverlay" onclick="closeScorePopup()"></div>
+<div id="scorePopup"><div id="scoreContent"></div></div>
+
+<script>
+function fmtWon(v) {
+  if (v >= 1e12) return (v/1e12).toFixed(1) + '조';
+  if (v >= 1e8) return (v/1e8).toFixed(1) + '억';
+  if (v >= 1e4) return Math.round(v/1e4) + '만';
+  return v.toLocaleString();
+}
+
+function fmtPrice(v) {
+  return v.toLocaleString() + '원';
+}
+
+// 이동평균 계산 (차트용)
+function calcMA(closes, period) {
+  const result = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period - 1) { result.push(null); continue; }
+    let sum = 0;
+    for (let j = 0; j < period; j++) sum += closes[i - j];
+    result.push(sum / period);
+  }
+  return result;
+}
+
+
+let results = [];
+let allResults = [];
+let currentFilter = 'all';
+let currentView = 'card';
+let sortKey = 'bullScore', sortAsc = false;
+
+function toggleFilter(f) {
+  currentFilter = (currentFilter === f) ? 'all' : f;
+  applyFilter();
+  // highlight active stat
+  document.querySelectorAll('.summary .stat').forEach((el, i) => {
+    const keys = ['all','aligned','just','volSpike','newHigh'];
+    el.classList.toggle('active', keys[i] === currentFilter);
+  });
+}
+
+function applyFilter() {
+  const vt = parseFloat(document.getElementById('volThreshold').value);
+  if (currentFilter === 'all') results = [...allResults];
+  else if (currentFilter === 'aligned') results = allResults.filter(r => r.maAligned);
+  else if (currentFilter === 'just') results = allResults.filter(r => r.maJust);
+  else if (currentFilter === 'volSpike') results = allResults.filter(r => r.volChange >= vt);
+  else if (currentFilter === 'newHigh') results = allResults.filter(r => r.newHighAll);
+  render();
+}
+
+function setView(v) {
+  currentView = v;
+  document.getElementById('btnCard').classList.toggle('active', v==='card');
+  document.getElementById('btnTable').classList.toggle('active', v==='table');
+  render();
+}
+
+function render() {
+  if (currentView === 'card') {
+    document.getElementById('cardGrid').style.display = 'grid';
+    document.getElementById('tableView').style.display = 'none';
+    renderCards();
+  } else {
+    document.getElementById('cardGrid').style.display = 'none';
+    document.getElementById('tableView').style.display = 'block';
+    renderTable();
+  }
+}
+
+function renderCards() {
+  const grid = document.getElementById('cardGrid');
+  if (!results.length) { grid.innerHTML = '<div class="no-results">조건에 맞는 종목이 없습니다</div>'; return; }
+  grid.innerHTML = results.map((r, idx) => {
+    const todayCls = r.todayReturn >= 0 ? 'today-up' : 'today-down';
+    const avg3Cls = r.avg3Return >= 0 ? 'avg-up' : 'avg-down';
+    const avg3Arrow = r.avg3Return >= 0 ? '▲' : '▼';
+
+    let badges = '';
+    // 점수
+    const sc = r.bullScore;
+    badges += `<span class="badge score-btn" style="background:${sc>=50?'#14532d':sc>=30?'#78350f':'#451a1a'};color:${sc>=50?'#4ade80':sc>=30?'#fbbf24':'#f87171'}" onclick="showScore(${idx})">${sc}점<span class="tip">클릭하면 상세 배점</span></span>`;
+    // 시장
+    badges += `<span class="badge ${r.market==='KOSPI'?'market-k':'market-q'}">${r.market}<span class="tip">${r.market} 상장</span></span>`;
+    // 거래량
+    if (r.volChange >= 100) badges += `<span class="badge vol-spike">거래량 +${r.volChange.toFixed(0)}%<span class="tip">20일 평균 대비 거래량 ${r.volChange.toFixed(0)}% 급등</span></span>`;
+    else if (r.volChange >= 0) badges += `<span class="badge vol-up">거래량 +${r.volChange.toFixed(0)}%<span class="tip">20일 평균 대비 거래량 변화</span></span>`;
+    else badges += `<span class="badge vol-down">거래량 ${r.volChange.toFixed(0)}%<span class="tip">20일 평균 대비 거래량 감소</span></span>`;
+    // 오늘
+    badges += `<span class="badge ${todayCls}">오늘 ${r.todayReturn>=0?'+':''}${r.todayReturn.toFixed(1)}%<span class="tip">오늘 수익률</span></span>`;
+    // 정배열
+    if (r.maJust) badges += `<span class="badge ma-just">⚡ 정배열 전환<span class="tip">오늘 5MA>20MA>60MA 정배열 진입</span></span>`;
+    else if (r.maAligned) badges += `<span class="badge ma-aligned">정배열<span class="tip">5MA>20MA>60MA 유지 중</span></span>`;
+    // 신고가
+    if (r.newHighAll) badges += `<span class="badge newhigh">🚀 고점 돌파<span class="tip">직전 고점(${fmtPrice(r.prevHigh)}) 돌파!</span></span>`;
+    else if (r.newHighNear) badges += `<span class="badge ma-aligned">📍 고점 근접<span class="tip">직전 고점(${fmtPrice(r.prevHigh)}) 3% 이내 근접</span></span>`;
+    // 연속양봉
+    if (r.consecutiveUp >= 3) badges += `<span class="badge vol-up">${r.consecutiveUp}연속 양봉<span class="tip">${r.consecutiveUp}일 연속 종가>시가</span></span>`;
+    // 투자자
+    if (r.investor) {
+      if (r.investor.foreignNet > 0) badges += `<span class="badge foreign-buy">외국인 순매수<span class="tip">외국인 최근 순매수 ${fmtWon(r.investor.foreignNet)}주</span></span>`;
+      else if (r.investor.foreignNet < 0) badges += `<span class="badge foreign-sell">외국인 순매도<span class="tip">외국인 최근 순매도 ${fmtWon(Math.abs(r.investor.foreignNet))}주</span></span>`;
+      if (r.investor.instNet > 0) badges += `<span class="badge inst-buy">기관 순매수<span class="tip">기관 최근 순매수 ${fmtWon(r.investor.instNet)}주</span></span>`;
+      else if (r.investor.instNet < 0) badges += `<span class="badge inst-sell">기관 순매도<span class="tip">기관 최근 순매도 ${fmtWon(Math.abs(r.investor.instNet))}주</span></span>`;
+    }
+
+    // 투자자 비중 바
+    let investorSection = '';
+    if (r.investor && r.investor.totalVol > 0) {
+      const fp = (r.investor.foreignVol / r.investor.totalVol * 100).toFixed(1);
+      const ip = (r.investor.instVol / r.investor.totalVol * 100).toFixed(1);
+      const pp = (100 - parseFloat(fp) - parseFloat(ip)).toFixed(1);
+      investorSection = `
+        <div class="investor-bar">
+          <div class="foreign" style="width:${fp}%"></div>
+          <div class="inst" style="width:${ip}%"></div>
+          <div class="indiv" style="width:${pp}%"></div>
+        </div>
+        <div class="investor-legend">
+          <span class="l-foreign">외국인 ${fp}%</span>
+          <span class="l-inst">기관 ${ip}%</span>
+          <span class="l-indiv">개인 ${pp}%</span>
+        </div>`;
+    }
+
+    return `<div class="stock-card${sc>=50?' highlight':''}">
+      <div class="stock-header">
+        <div class="stock-name">${r.name} <small>${r.code}</small></div>
+        <div class="stock-badges">${badges}</div>
+      </div>
+      <div class="stock-stats">
+        <span>현재가<br><span class="v" style="color:${r.todayReturn>=0?'#4ade80':'#f87171'}">${fmtPrice(r.close)}</span></span>
+        <span>3일 평균 손익<br><span class="v ${r.avg3Return>=0?'pos':'neg'}">${avg3Arrow} ${r.avg3Return>=0?'+':''}${r.avg3Return.toFixed(1)}%</span></span>
+        <span>오늘 거래량<br><span class="v">${fmtWon(r.todayVol)}</span></span>
+        <span>20일 평균 거래량<br><span class="v">${fmtWon(r.avgVol)}</span></span>
+      </div>
+      ${investorSection}
+      <div class="chart-wrap"><canvas id="chart_${idx}"></canvas></div>
+    </div>`;
+  }).join('');
+  results.forEach((r, idx) => drawChart(idx, r));
+}
+
+function drawChart(idx, r) {
+  const canvas = document.getElementById(`chart_${idx}`);
+  if (!canvas || !r.rawData || r.rawData.length === 0) return;
+  const ctx = canvas.getContext('2d');
+  const displayData = r.rawData.slice(-60);
+  const labels = displayData.map(d => d.date.slice(4,6)+'.'+d.date.slice(6));
+  const closes = displayData.map(d => d.close);
+  const volumes = displayData.map(d => d.volume);
+
+  // MA 라인 (전체 데이터 기준 계산 후 슬라이스)
+  const allCloses = r.rawData.map(d => d.close);
+  const ma5All = calcMA(allCloses, 5);
+  const ma20All = calcMA(allCloses, 20);
+  const ma60All = calcMA(allCloses, 60);
+  const offset = r.rawData.length - 60;
+  const ma5 = ma5All.slice(offset);
+  const ma20 = ma20All.slice(offset);
+  const ma60 = ma60All.slice(offset);
+  const maxVol = Math.max(...volumes);
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { type:'line', label:'종가', data:closes, borderColor:r.avg3Return>=0?'#4ade80':'#f87171', borderWidth:2, pointRadius:0, yAxisID:'y', tension:0.3, fill:false, order:1 },
+        { type:'line', label:'5MA', data:ma5, borderColor:'#fbbf24', borderWidth:1, pointRadius:0, yAxisID:'y', borderDash:[3,2], order:2 },
+        { type:'line', label:'20MA', data:ma20, borderColor:'#60a5fa', borderWidth:1, pointRadius:0, yAxisID:'y', borderDash:[3,2], order:3 },
+        { type:'line', label:'60MA', data:ma60, borderColor:'#a78bfa', borderWidth:1, pointRadius:0, yAxisID:'y', borderDash:[3,2], order:4 },
+        { type:'bar', label:'거래량', data:volumes, backgroundColor: volumes.map((_,i) => {
+          if (i===0) return 'rgba(96,165,250,0.4)';
+          return displayData[i].close >= displayData[i].open ? 'rgba(74,222,128,0.5)' : 'rgba(248,113,113,0.5)';
+        }), yAxisID:'y1', order:5 }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false, animation:false,
+      plugins:{ legend:{ display:false } },
+      scales: {
+        x:{ ticks:{ color:'#555', font:{size:9}, maxTicksLimit:8 }, grid:{ display:false } },
+        y:{ position:'left', ticks:{ color:'#555', font:{size:9}, callback: v => v>=1e4?(v/1e4).toFixed(0)+'만':v.toLocaleString() }, grid:{ color:'#1a2035' } },
+        y1:{ position:'right', ticks:{ display:false }, grid:{ display:false }, max: maxVol*4 }
+      }
+    }
+  });
+}
+
+function renderTable() {
+  const tv = document.getElementById('tableView');
+  tv.innerHTML = `<table>
+    <tr>
+      <th onclick="doSort('name')">종목</th>
+      <th onclick="doSort('bullScore')">점수 ▼</th>
+      <th onclick="doSort('close')">현재가</th>
+      <th onclick="doSort('todayReturn')">오늘</th>
+      <th onclick="doSort('avg3Return')">3일 평균</th>
+      <th onclick="doSort('volChange')">거래량</th>
+      <th>정배열</th>
+      <th>고점</th>
+      <th>연속양봉</th>
+      <th>투자자</th>
+    </tr>
+    <tbody>${results.map((r,idx) => `<tr>
+      <td><strong>${r.name}</strong> <small style="color:#8892a4">${r.code}</small></td>
+      <td><span class="badge score-btn" style="background:${r.bullScore>=50?'#14532d':r.bullScore>=30?'#78350f':'#451a1a'};color:${r.bullScore>=50?'#4ade80':r.bullScore>=30?'#fbbf24':'#f87171'};cursor:pointer" onclick="showScore(${idx})">${r.bullScore}점</span></td>
+      <td>${fmtPrice(r.close)}</td>
+      <td class="${r.todayReturn>=0?'pos':'neg'}">${r.todayReturn>=0?'▲':'▼'} ${r.todayReturn>=0?'+':''}${r.todayReturn.toFixed(1)}%</td>
+      <td class="${r.avg3Return>=0?'pos':'neg'}">${r.avg3Return>=0?'▲':'▼'} ${r.avg3Return>=0?'+':''}${r.avg3Return.toFixed(1)}%</td>
+      <td class="${r.volChange>=0?'pos':'neg'}">${r.volChange>=0?'+':''}${r.volChange.toFixed(0)}%</td>
+      <td>${r.maJust?'⚡전환':r.maAligned?'✅유지':'–'}</td>
+      <td>${r.newHighAll?'🚀돌파':r.newHighNear?'📍근접':'–'}</td>
+      <td>${r.consecutiveUp>=2?r.consecutiveUp+'일':'–'}</td>
+      <td style="font-size:11px">${r.investor ?
+        (r.investor.foreignNet>0?'<span class="pos">외↑</span>':'<span class="neg">외↓</span>') + ' ' +
+        (r.investor.instNet>0?'<span class="pos">기↑</span>':'<span class="neg">기↓</span>') : '–'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function doSort(key) {
+  if (sortKey === key) sortAsc = !sortAsc; else { sortKey = key; sortAsc = false; }
+  results.sort((a,b) => {
+    const va = a[key], vb = b[key];
+    if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return sortAsc ? (va>vb?1:-1) : (va<vb?1:-1);
+  });
+  render();
+}
+
+function fmtScoreVal(v, max) {
+  const color = v > 0 ? '#4ade80' : v < 0 ? '#f87171' : '#94a3b8';
+  return `<span style="color:${color};font-weight:700">${v>0?'+':''}${v}</span><span style="color:#555">/${max}</span>`;
+}
+
+function showScore(idx) {
+  const r = results[idx];
+  const sd = r.scoreDetail;
+  document.getElementById('scoreContent').innerHTML = `
+    <div class="title">${r.name} (${r.code}) 상승 가능성 점수</div>
+    <table>
+      <tr><th>항목</th><th style="text-align:right">배점</th></tr>
+      <tr><td>📈 ${sd.today.label}</td><td style="text-align:right">${fmtScoreVal(sd.today.s, sd.today.max)}</td></tr>
+      <tr><td>📊 ${sd.avg3.label}</td><td style="text-align:right">${fmtScoreVal(sd.avg3.s, sd.avg3.max)}</td></tr>
+      <tr><td>📐 ${sd.ma.label}</td><td style="text-align:right">${fmtScoreVal(sd.ma.s, sd.ma.max)}</td></tr>
+      <tr><td>🔥 ${sd.vol.label}</td><td style="text-align:right">${fmtScoreVal(sd.vol.s, sd.vol.max)}</td></tr>
+      <tr><td>🕯️ ${sd.candle.label}</td><td style="text-align:right">${fmtScoreVal(sd.candle.s, sd.candle.max)}</td></tr>
+      <tr><td>🚀 ${sd.high.label}</td><td style="text-align:right">${fmtScoreVal(sd.high.s, sd.high.max)}</td></tr>
+      <tr><td>💥 ${sd.combo.label}</td><td style="text-align:right">${fmtScoreVal(sd.combo.s, sd.combo.max)}</td></tr>
+      <tr class="total"><td colspan="2" style="text-align:right;padding-top:10px;color:${r.bullScore>=50?'#4ade80':r.bullScore>=30?'#fbbf24':'#f87171'}">${r.bullScore} / 100</td></tr>
+    </table>`;
+  document.getElementById('scoreOverlay').style.display = 'block';
+  document.getElementById('scorePopup').style.display = 'block';
+}
+
+function closeScorePopup() {
+  document.getElementById('scoreOverlay').style.display = 'none';
+  document.getElementById('scorePopup').style.display = 'none';
+}
+
+
+async function loadData() {
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  btn.textContent = '로딩 중...';
+
+  const status = document.getElementById('status');
+  const bar = document.getElementById('progressBar');
+  status.textContent = 'scan_result.json 로드 중...';
+  bar.style.width = '30%';
+
+  try {
+    const res = await fetch('scan_result.json?t=' + Date.now());
+    if (!res.ok) throw new Error('scan_result.json을 찾을 수 없습니다. scanner.py를 먼저 실행하세요.');
+    const data = await res.json();
+    bar.style.width = '70%';
+
+    const market = document.getElementById('market').value;
+    const scoreMin = parseFloat(document.getElementById('scoreThreshold').value) || 0;
+    const volMin = parseFloat(document.getElementById('volThreshold').value) || 0;
+
+    // 필터 적용
+    let filtered = data.results;
+    if (market !== 'ALL') filtered = filtered.filter(r => r.market === market);
+    if (scoreMin > 0) filtered = filtered.filter(r => r.bullScore >= scoreMin);
+    if (volMin > 0) filtered = filtered.filter(r => r.volChange >= volMin);
+
+    results = filtered;
+    allResults = [...filtered];
+    currentFilter = 'all';
+    document.querySelectorAll('.summary .stat').forEach(el => el.classList.remove('active'));
+
+    // 요약
+    document.getElementById('summary').style.display = 'flex';
+    document.getElementById('totalCount').textContent = allResults.length;
+    document.getElementById('alignedCount').textContent = allResults.filter(r => r.maAligned).length;
+    document.getElementById('justCount').textContent = allResults.filter(r => r.maJust).length;
+    document.getElementById('volSpikeCount').textContent = allResults.filter(r => r.volChange >= 100).length;
+    document.getElementById('newHighCount').textContent = allResults.filter(r => r.newHighAll).length;
+
+    const scanTime = data.scanTime || '알 수 없음';
+    status.textContent = `✅ ${data.totalStocks}개 종목 스캔 결과 로드 완료 (${allResults.length}개 표시) | 스캔 시각: ${scanTime}`;
+    bar.style.width = '100%';
+
+    render();
+  } catch(e) {
+    status.textContent = '❌ ' + e.message;
+    bar.style.width = '0%';
+  }
+
+  btn.disabled = false;
+  btn.textContent = '데이터 로드';
+}
+
+// 페이지 로드 시 자동 로드
+window.addEventListener('DOMContentLoaded', () => { loadData(); });
+</script>
+</body>
+</html>
