@@ -110,6 +110,8 @@ body { background: #0a0e17; color: #e0e0e0; font-family: 'Segoe UI', sans-serif;
     <input id="scoreThreshold" type="number" value="0" style="width:50px">
     <label>거래량 급등 ≥</label>
     <input id="volThreshold" type="number" value="0" style="width:50px"> <span style="color:#8892a4">%</span>
+    <input id="searchBox" type="text" placeholder="🔍 종목명 / 코드 검색" style="width:170px" oninput="searchStock()" onkeydown="if(event.key==='Enter')searchStock()">
+    <button onclick="clearSearch()" style="background:#475569">검색 해제</button>
     <div class="view-toggle">
       <button id="btnCard" class="active" onclick="setView('card')">카드</button>
       <button id="btnTable" onclick="setView('table')">테이블</button>
@@ -166,6 +168,7 @@ function calcMA(closes, period) {
 
 let results = [];
 let allResults = [];
+let masterResults = []; // 시장/점수/거래량 필터 적용 전 전체 종목 (검색용)
 let currentFilter = 'all';
 let currentView = 'card';
 let sortKey = 'bullScore', sortAsc = false;
@@ -212,6 +215,29 @@ function toggleFilter(f) {
     const keys = ['all','aligned','just','volSpike','newHigh','combo','watch'];
     el.classList.toggle('active', keys[i] === currentFilter);
   });
+}
+
+function searchStock() {
+  const q = document.getElementById('searchBox').value.trim().toLowerCase();
+  if (!q) { clearSearch(); return; }
+  currentFilter = 'search';
+  displayLimit = 50;
+  document.querySelectorAll('.summary .stat').forEach(el => el.classList.remove('active'));
+  results = masterResults.filter(r =>
+    r.name.toLowerCase().includes(q) || String(r.code).includes(q)
+  );
+  // 카드 뷰로 전환
+  currentView = 'card';
+  document.getElementById('btnCard').classList.add('active');
+  document.getElementById('btnTable').classList.remove('active');
+  render();
+}
+
+function clearSearch() {
+  document.getElementById('searchBox').value = '';
+  if (currentFilter === 'search') currentFilter = 'all';
+  displayLimit = 50;
+  applyFilter();
 }
 
 function applyFilter() {
@@ -475,6 +501,7 @@ async function loadData() {
     if (scoreMin > 0) filtered = filtered.filter(r => r.bullScore >= scoreMin);
     if (volMin > 0) filtered = filtered.filter(r => r.volChange >= volMin);
 
+    masterResults = data.results; // 검색은 전체 종목 대상
     results = filtered;
     allResults = [...filtered];
     currentFilter = 'all';
