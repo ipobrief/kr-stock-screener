@@ -72,6 +72,7 @@ body { background: #0a0e17; color: #e0e0e0; font-family: 'Segoe UI', sans-serif;
 .star-btn { background: none; border: none; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; color: #475569; transition: transform 0.1s; }
 .star-btn:hover { transform: scale(1.25); }
 .star-btn.on { color: #fbbf24; }
+.watch-bar { background: #1a1505; border: 1px solid #3a2f0a; border-radius: 6px; padding: 5px 10px; margin-bottom: 8px; font-size: 12px; font-weight: 600; }
 .table-view .star-btn { font-size: 16px; }
 .chart-wrap { height: 180px; position: relative; }
 .view-toggle { display: flex; gap: 0; }
@@ -175,21 +176,48 @@ let sortKey = 'bullScore', sortAsc = false;
 let displayLimit = 50; // 한 번에 표시할 카드 수
 
 // 관심종목 (localStorage 저장)
-let watchlist = new Set();
-try { watchlist = new Set(JSON.parse(localStorage.getItem('watchlist') || '[]')); } catch(e) {}
+// 신규 구조: { code: { date: 'YYYY-MM-DD', price: 등록시점가격 }, ... }
+// 구버전(코드 배열)도 자동 마이그레이션
+let watchlist = {};
+(function loadWatchlist() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('watchlist') || '{}');
+    if (Array.isArray(raw)) {
+      // 구버전: 코드 배열 -> 날짜/가격 정보 없음으로 변환
+      raw.forEach(code => { watchlist[code] = { date: null, price: null }; });
+      saveWatchlist();
+    } else {
+      watchlist = raw || {};
+    }
+  } catch(e) { watchlist = {}; }
+})();
 
-function isWatched(code) { return watchlist.has(code); }
+function saveWatchlist() {
+  localStorage.setItem('watchlist', JSON.stringify(watchlist));
+}
+
+function isWatched(code) { return Object.prototype.hasOwnProperty.call(watchlist, code); }
 
 function toggleWatch(code, ev) {
   if (ev) ev.stopPropagation();
-  if (watchlist.has(code)) watchlist.delete(code); else watchlist.add(code);
-  localStorage.setItem('watchlist', JSON.stringify([...watchlist]));
+  if (isWatched(code)) {
+    delete watchlist[code];
+  } else {
+    // 등록 시점의 날짜와 가격 기록
+    const stock = (masterResults.length ? masterResults : allResults).find(r => r.code === code);
+    const today = new Date();
+    const ymd = today.getFullYear() + '-' +
+      String(today.getMonth()+1).padStart(2,'0') + '-' +
+      String(today.getDate()).padStart(2,'0');
+    watchlist[code] = { date: ymd, price: stock ? stock.close : null };
+  }
+  saveWatchlist();
   updateWatchCount();
   if (currentFilter === 'watch') { applyFilter(); }
   else {
     // 별 아이콘만 갱신
     document.querySelectorAll(`.star-btn[data-code="${code}"]`).forEach(el => {
-      const on = watchlist.has(code);
+      const on = isWatched(code);
       el.classList.toggle('on', on);
       el.textContent = on ? '★' : '☆';
     });
@@ -198,12 +226,27 @@ function toggleWatch(code, ev) {
 
 function updateWatchCount() {
   const el = document.getElementById('watchCount');
-  if (el) el.textContent = allResults.filter(r => watchlist.has(r.code)).length;
+  if (el) el.textContent = allResults.filter(r => isWatched(r.code)).length;
 }
 
 function starBtn(code) {
-  const on = watchlist.has(code);
+  const on = isWatched(code);
   return `<button class="star-btn${on?' on':''}" data-code="${code}" title="관심종목" onclick="toggleWatch('${code}', event)">${on?'★':'☆'}</button>`;
+}
+
+// 관심종목 등록 이후 수익률 HTML (카드/테이블 공용)
+function watchInfo(r) {
+  if (!isWatched(r.code)) return '';
+  const w = watchlist[r.code];
+  if (!w || !w.date) return `<span class="watch-since" style="color:#8892a4">⭐ 등록일 정보 없음</span>`;
+  let ret = '';
+  if (w.price && w.price > 0) {
+    const pct = (r.close - w.price) / w.price * 100;
+    const cls = pct >= 0 ? 'pos' : 'neg';
+    const arrow = pct >= 0 ? '▲' : '▼';
+    ret = ` · <span class="${cls}">등록후 ${arrow} ${pct>=0?'+':''}${pct.toFixed(1)}%</span> <span style="color:#8892a4">(${fmtPrice(w.price)}→${fmtPrice(r.close)})</span>`;
+  }
+  return `<span class="watch-since" style="color:#fbbf24">⭐ ${w.date} 등록</span>${ret}`;
 }
 
 function toggleFilter(f) {
@@ -248,7 +291,7 @@ function applyFilter() {
   else if (currentFilter === 'volSpike') results = allResults.filter(r => r.volChange >= vt);
   else if (currentFilter === 'newHigh') results = allResults.filter(r => r.newHighAll);
   else if (currentFilter === 'combo') results = allResults.filter(r => r.combo20);
-  else if (currentFilter === 'watch') results = allResults.filter(r => watchlist.has(r.code));
+  else if (currentFilter === 'watch') results = allResults.filter(r => isWatched(r.code));
   render();
 }
 
@@ -333,6 +376,7 @@ function renderCards() {
         <div class="stock-name">${starBtn(r.code)}<a href="https://tossinvest.com/stocks/${r.code}/order" target="_blank" style="color:inherit;text-decoration:none" title="토스증권에서 보기">${r.name}</a> <small>${r.code}</small></div>
         <div class="stock-badges">${badges}</div>
       </div>
+      ${isWatched(r.code) ? `<div class="watch-bar">${watchInfo(r)}</div>` : ''}
       <div class="stock-stats">
         <span>현재가<br><span class="v" style="color:${r.todayReturn>=0?'#4ade80':'#f87171'}">${fmtPrice(r.close)}</span></span>
         <span>3일 평균 손익<br><span class="v ${r.avg3Return>=0?'pos':'neg'}">${avg3Arrow} ${r.avg3Return>=0?'+':''}${r.avg3Return.toFixed(1)}%</span></span>
@@ -415,6 +459,7 @@ function renderTable() {
       <th>고점</th>
       <th>연속양봉</th>
       <th>투자자</th>
+      <th>관심등록</th>
     </tr>
     <tbody>${showing.map((r,idx) => `<tr>
       <td>${starBtn(r.code)}</td>
@@ -430,6 +475,7 @@ function renderTable() {
       <td style="font-size:11px">${r.investor ?
         (r.investor.foreignNet>0?'<span class="pos">외↑</span>':'<span class="neg">외↓</span>') + ' ' +
         (r.investor.instNet>0?'<span class="pos">기↑</span>':'<span class="neg">기↓</span>') : '–'}</td>
+      <td style="font-size:11px">${isWatched(r.code) ? watchInfo(r) : '–'}</td>
     </tr>`).join('')}</tbody>
   </table>`;
 }
