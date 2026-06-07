@@ -21,7 +21,9 @@ body { background: #0a0e17; color: #e0e0e0; font-family: 'Segoe UI', sans-serif;
 .progress-wrap { height: 3px; background: #1a2035; margin-top: 6px; border-radius: 2px; overflow: hidden; }
 .progress-bar { height: 100%; background: #2563eb; width: 0%; transition: width 0.3s; }
 .summary { padding: 16px 30px; display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; }
-.summary .stat { background: #141a2a; padding: 10px 16px; border-radius: 8px; border: 1px solid #1e2a40; }
+.summary .stat { background: #141a2a; padding: 10px 16px; border-radius: 8px; border: 1px solid #1e2a40; position: relative; }
+.summary .stat .stat-tip { display: none; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #1e293b; color: #e2e8f0; padding: 8px 12px; border-radius: 6px; font-size: 11px; font-weight: 400; white-space: nowrap; z-index: 100; margin-top: 8px; border: 1px solid #334155; box-shadow: 0 4px 12px rgba(0,0,0,0.5); pointer-events: none; }
+.summary .stat:hover .stat-tip { display: block; }
 .summary .stat .val { font-size: 20px; font-weight: 700; color: #fff; }
 .summary .stat .lbl { color: #8892a4; margin-top: 2px; }
 .summary .stat:hover { border-color: #3b82f6; }
@@ -132,7 +134,7 @@ body { background: #0a0e17; color: #e0e0e0; font-family: 'Segoe UI', sans-serif;
   <div class="stat" onclick="toggleFilter('just')" style="cursor:pointer"><div class="val" id="justCount" style="color:#4ade80">0</div><div class="lbl">⚡ 정배열 전환</div></div>
   <div class="stat" onclick="toggleFilter('volSpike')" style="cursor:pointer"><div class="val" id="volSpikeCount" style="color:#fb923c">0</div><div class="lbl">🔥 거래량 급등</div></div>
   <div class="stat" onclick="toggleFilter('newHigh')" style="cursor:pointer"><div class="val" id="newHighCount" style="color:#f59e0b">0</div><div class="lbl">🚀 고점 돌파</div></div>
-  <div class="stat" onclick="toggleFilter('combo')" style="cursor:pointer"><div class="val" id="comboCount" style="color:#e879f9">0</div><div class="lbl">💥 3콤보</div></div>
+  <div class="stat" onclick="toggleFilter('combo')" style="cursor:pointer"><div class="val" id="comboCount" style="color:#e879f9">0</div><div class="lbl">💥 3콤보</div><span class="stat-tip">정배열 + 거래량 급등(50%↑) + 양봉(당일 상승)<br>3가지를 모두 충족한 종목 · 콤보 보너스 20점 만점</span></div>
   <div class="stat" onclick="toggleFilter('watch')" style="cursor:pointer"><div class="val" id="watchCount" style="color:#fbbf24">0</div><div class="lbl">⭐ 관심종목</div></div>
 </div>
 
