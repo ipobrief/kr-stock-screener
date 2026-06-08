@@ -22,6 +22,36 @@ OHLCV_DAYS = 90              # OHLCV 조회 일수
 MIN_DATA_DAYS = 60           # 최소 데이터 일수 (60MA용)
 OUTPUT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scan_result.json')
 
+# ─── ETF/ETN/채권 등 비-단일종목 제외 ───
+# ETF/ETN 운용사 브랜드명 (종목명이 이 단어로 시작하면 ETF/ETN)
+# 주의: '삼성','KB','미래에셋' 등 발행사 접두어는 단일종목(삼성전자 등)과 충돌하므로 제외.
+#       해당 발행사 ETN은 'ETN/선물/인버스' 등 키워드로 걸러진다.
+_ETF_BRANDS = [
+    'KODEX', 'TIGER', 'KBSTAR', 'ARIRANG', 'KOSEF', 'HANARO', 'ACE', 'SOL',
+    'PLUS', 'RISE', 'KOACT', 'TIMEFOLIO', 'FOCUS', 'VITA',
+    '히어로즈', '마이티', '에셋플러스',
+]
+# 종목명에 포함되면 제외하는 키워드 (ETF/ETN/채권/파생)
+_EXCLUDE_KEYWORDS = [
+    'ETN', 'ETF', '선물', '레버리지', '인버스', '합성', '채권', '회사채', '국고채',
+    '국채', 'S&P', 'S＆P', '나스닥', '다우', '유로', 'STOXX',
+    '리츠', 'TR', '커버드콜', 'KRX', 'MSCI', 'CD금리', 'KOFR', '통안',
+    'TDF', '머니마켓', '액티브', '코스피200', '코스닥150', '2X', '3X',
+]
+
+def is_excluded(name):
+    """ETF/ETN/채권 등 단일종목이 아닌 상품이면 True"""
+    n = name.upper().replace(' ', '')
+    for kw in _EXCLUDE_KEYWORDS:
+        if kw.upper().replace(' ', '') in n:
+            return True
+    for brand in _ETF_BRANDS:
+        b = brand.upper().replace(' ', '')
+        # 브랜드명으로 시작하면 ETF/ETN 으로 간주
+        if n.startswith(b):
+            return True
+    return False
+
 # ─── 1단계: 전종목 코드 수집 ───
 async def fetch_all_stock_codes(session):
     """네이버 전종목 시세 페이지에서 모든 종목 코드/이름 수집"""
@@ -320,6 +350,10 @@ async def main():
         for i, s in enumerate(stocks):
             data = ohlcv_results[i]
             if not data or len(data) < MIN_DATA_DAYS:
+                continue
+
+            # ETF/ETN/채권 등 비-단일종목 제외
+            if is_excluded(s['n']):
                 continue
 
             closes = [d['close'] for d in data]
