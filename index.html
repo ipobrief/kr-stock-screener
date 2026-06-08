@@ -386,7 +386,7 @@ function renderCards() {
         <span>오늘 거래량<br><span class="v">${fmtWon(r.todayVol)}</span></span>
       </div>
       ${investorSection}
-      <div class="chart-wrap"><canvas id="chart_${idx}"></canvas></div>
+      <div class="chart-wrap" style="cursor:pointer" title="클릭하면 토스증권 차트로 이동" onclick="window.open('https://tossinvest.com/stocks/${r.code}/order','_blank')"><canvas id="chart_${idx}"></canvas></div>
     </div>`;
   }).join('');
   if (hasMore) {
