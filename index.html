@@ -401,6 +401,8 @@ function renderCards() {
 function drawChart(idx, r) {
   const canvas = document.getElementById(`chart_${idx}`);
   if (!canvas || !r.rawData || r.rawData.length === 0) return;
+  const prev = Chart.getChart(canvas);
+  if (prev) prev.destroy();
   const ctx = canvas.getContext('2d');
   const displayData = r.rawData.slice(-30);
   const labels = displayData.map(d => d.date.slice(4,6)+'.'+d.date.slice(6));
@@ -566,7 +568,14 @@ async function loadData() {
     updateWatchCount();
 
     const scanTime = data.scanTime || '알 수 없음';
-    status.textContent = `✅ ${data.totalStocks}개 종목 스캔 결과 로드 완료 (${allResults.length}개 표시) | 스캔 시각: ${scanTime}`;
+    // 스캔 시각이 오래됐으면 경고 표시 (장중 데이터 신뢰도 안내)
+    let staleWarn = '';
+    const ts = Date.parse(String(scanTime).replace(' ', 'T'));
+    if (!isNaN(ts)) {
+      const hours = (Date.now() - ts) / 36e5;
+      if (hours >= 20) staleWarn = ` <span style="color:#f87171;font-weight:700">⚠️ ${Math.floor(hours/24) >= 1 ? Math.floor(hours/24)+'일' : Math.round(hours)+'시간'} 전 데이터입니다 (자동 업데이트 확인 필요)</span>`;
+    }
+    status.innerHTML = `✅ ${data.totalStocks}개 종목 스캔 결과 로드 완료 (${allResults.length}개 표시) | 스캔 시각: ${scanTime}${staleWarn}`;
     bar.style.width = '100%';
 
     render();
